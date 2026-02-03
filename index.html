@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAPT Pill | Pro Station</title>
+    <title>RAPT Pill | Brew Station</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/date-fns"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
@@ -48,7 +48,7 @@
 
 <div class="container">
     <header>
-        <div><h1 style="margin:0; font-size: 22px; letter-spacing: 1px;">RAPT PILL</h1><p id="brewNameDisplay" style="color:var(--kl-muted); font-size:12px; margin:0;">STATION READY</p></div>
+        <div><h1 style="margin:0; font-size: 22px; letter-spacing: 1px;">RAPT PILL</h1><p id="brewNameDisplay" style="color:var(--kl-muted); font-size:12px; margin:0;">Live STATS and LOG</p></div>
         <div style="text-align: right;"><div id="unitDisplay" style="font-size: 10px; color: var(--kl-red); font-weight: bold;">UNIT: SG</div></div>
     </header>
 
@@ -95,7 +95,7 @@
         </div>
 
         <button id="saveSettings" class="btn-main" style="width:100%; margin-bottom:10px;">Save Changes</button>
-        <button onclick="archiveCurrentBrew()" style="background:none; border: 1px solid var(--kl-red); color:var(--kl-red); width:100%; margin-bottom:10px;">Archive & Reset</button>
+        <button onclick="archiveCurrentBrew()" style="background:none; border: 1px solid var(--kl-red); color:var(--kl-red); width:100%; margin-bottom:10px;">Archive current brew log & Reset</button>
         <button onclick="closeModals()" class="btn-sub" style="width:100%">Cancel</button>
     </div>
 </div>
