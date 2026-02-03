@@ -13,6 +13,8 @@
         .container { width: 100%; max-width: 800px; }
         header { border-left: 4px solid var(--kl-red); padding-left: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-start; }
         
+        .doc-link { color: var(--kl-red); text-decoration: none; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid var(--kl-red); padding: 4px 8px; border-radius: 4px; transition: 0.2s; }
+        .doc-link:hover { background: var(--kl-red); color: white; }
         .nav-controls { display: flex; gap: 8px; margin-bottom: 20px; width: 100%; }
         .status-bar { background: var(--kl-grey); padding: 8px 15px; border-radius: 4px; font-size: 11px; margin-bottom: 15px; display: flex; justify-content: space-between; border: 1px solid #333; }
         .dot { height: 8px; width: 8px; background-color: #444; border-radius: 50%; display: inline-block; margin-right: 5px; }
@@ -49,6 +51,7 @@
 <div class="container">
     <header>
         <div><h1 style="margin:0; font-size: 22px; letter-spacing: 1px;">RAPT PILL</h1><p id="brewNameDisplay" style="color:var(--kl-muted); font-size:12px; margin:0;">Live STATS and LOG</p></div>
+        <a href="https://docs.rapt.io/equipment/rapt-pill-hydrometer" target="_blank" class="doc-link">Official Docs</a>
         <div style="text-align: right;"><div id="unitDisplay" style="font-size: 10px; color: var(--kl-red); font-weight: bold;">UNIT: SG</div></div>
     </header>
 
