@@ -9,29 +9,36 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
     <style>
         :root { --kl-red: #e30613; --kl-blue: #3498db; --kl-dark: #1a1a1a; --kl-grey: #2d2d2d; --kl-text: #ffffff; --kl-muted: #a0a0a0; }
-        body { font-family: 'Segoe UI', Roboto, sans-serif; background: var(--kl-dark); margin: 0; padding: 15px; color: var(--kl-text); display: flex; flex-direction: column; align-items: center; }
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--kl-dark); margin: 0; padding: 15px; color: var(--kl-text); display: flex; flex-direction: column; align-items: center; }
         .container { width: 100%; max-width: 800px; }
         header { border-left: 4px solid var(--kl-red); padding-left: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-start; }
+        
         .nav-controls { display: flex; gap: 8px; margin-bottom: 20px; width: 100%; }
         .status-bar { background: var(--kl-grey); padding: 8px 15px; border-radius: 4px; font-size: 11px; margin-bottom: 15px; display: flex; justify-content: space-between; border: 1px solid #333; }
         .dot { height: 8px; width: 8px; background-color: #444; border-radius: 50%; display: inline-block; margin-right: 5px; }
         .active .dot { background-color: #27ae60; box-shadow: 0 0 8px #27ae60; }
+        
         #dashboard { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
         .card { background: var(--kl-grey); padding: 15px; border-radius: 8px; border-bottom: 3px solid #333; text-align: center; }
         .card.grav { border-bottom: 3px solid var(--kl-red); }
         .card.temp { border-bottom: 3px solid var(--kl-blue); }
         .value { font-size: 24px; font-weight: 700; font-family: monospace; }
         .label { font-size: 10px; text-transform: uppercase; font-weight: bold; margin-bottom: 4px; }
+        
         .chart-wrapper { position: relative; background: var(--kl-grey); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #333; }
         .chart-container { height: 250px; }
         .chart-title { position: absolute; top: 10px; left: 15px; font-size: 9px; font-weight: bold; color: var(--kl-muted); letter-spacing: 1px; z-index: 5; }
+        
         button { flex: 1; padding: 12px 5px; font-size: 11px; cursor: pointer; border: none; border-radius: 4px; text-transform: uppercase; font-weight: bold; transition: 0.2s; }
         .btn-main { background: var(--kl-red); color: white; }
         .btn-sub { background: #444; color: white; }
-        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); backdrop-filter: blur(2px); }
         .modal-content { background: var(--kl-grey); margin: 5% auto; padding: 25px; border-radius: 8px; width: 350px; border: 1px solid var(--kl-red); overflow-y: auto; max-height: 85vh; }
         input, select { width: 100%; padding: 10px; margin: 10px 0; background: #111; border: 1px solid #444; color: white; border-radius: 4px; box-sizing: border-box; }
-        .setup-box { background: #111; padding: 12px; border-radius: 4px; margin: 15px 0; border-left: 3px solid #f39c12; font-size: 11px; line-height: 1.4; }
+        
+        .setup-box { background: #111; padding: 12px; border-radius: 4px; margin: 10px 0; border-left: 3px solid #f39c12; font-size: 11px; line-height: 1.4; color: #ddd; }
         .history-list { max-height: 250px; overflow-y: auto; border: 1px solid #444; background: #111; }
         .history-item { padding: 12px; border-bottom: 1px solid #333; cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; }
         .history-item:hover { background: #222; color: var(--kl-red); }
@@ -71,8 +78,22 @@
         <h3 style="margin:0 0 15px 0; color:var(--kl-red);">SETTINGS</h3>
         <label>Display Units</label>
         <select id="unitSelect"><option value="SG">SG (Specific Gravity)</option><option value="Plato">Plato (°P)</option></select>
+        
         <label>Calibration Offset (SG)</label>
         <input type="number" id="offsetInput" step="0.0001" placeholder="e.g. -0.002">
+
+        <button onclick="toggleSetup()" class="btn-sub" style="width:100%; font-size: 9px; padding: 5px; margin-bottom:10px;">Toggle Chrome Setup Help</button>
+        <div id="setupInstructions" style="display:none;">
+            <div class="setup-box">
+                <strong style="color:#f39c12; display:block; margin-bottom:5px;">⚠️ ENABLE SCANNING</strong>
+                1. Copy the flag link below.<br>
+                2. Paste into address bar.<br>
+                3. Set to <strong>Enabled</strong> & Relaunch.<br>
+                <code style="background:#000; padding:4px; font-size:9px; display:block; margin:8px 0; word-break:break-all;">chrome://flags/#enable-experimental-web-platform-features</code>
+                <button onclick="copyFlagLink()" style="background:#333; color:#fff; border:1px solid #555; padding:5px; width:100%; border-radius:3px; cursor:pointer;">Copy Link</button>
+            </div>
+        </div>
+
         <button id="saveSettings" class="btn-main" style="width:100%; margin-bottom:10px;">Save Changes</button>
         <button onclick="archiveCurrentBrew()" style="background:none; border: 1px solid var(--kl-red); color:var(--kl-red); width:100%; margin-bottom:10px;">Archive & Reset</button>
         <button onclick="closeModals()" class="btn-sub" style="width:100%">Cancel</button>
@@ -83,7 +104,7 @@
     <div class="modal-content">
         <h3 style="margin:0 0 15px 0; color:var(--kl-red);">BREW HISTORY</h3>
         <div id="historyList" class="history-list"></div>
-        <button onclick="closeModals()" class="btn-sub" style="width:100%; margin-top:10px;">Close</button>
+        <button onclick="closeModals()" class="btn-sub" style="width:100%; margin-top:15px;">Close</button>
     </div>
 </div>
 
@@ -93,11 +114,11 @@
     let offset = parseFloat(localStorage.getItem('rapt_offset')) || 0;
     let unit = localStorage.getItem('rapt_unit') || 'SG';
     let lastLogTime = 0;
-    const LOG_INTERVAL = 15 * 60 * 1000; // Log data every 15 minutes
+    const LOG_INTERVAL = 15 * 60 * 1000; 
 
     let gravChart, tempChart;
 
-    // Core Bluetooth Scanning Logic
+    // --- BLUETOOTH LOGIC ---
     document.getElementById('startBtn').onclick = async () => {
         try {
             const scan = await navigator.bluetooth.requestLEScan({
@@ -115,7 +136,6 @@
                 if (mData && mData.byteLength === 23) {
                     const view = new DataView(mData.buffer);
                     
-                    // Parse Raw Data using Version 1/2 Struct Offsets
                     const tRaw = (view.getUint16(9, false) / 128 - 273.15).toFixed(1);
                     const gRaw = (view.getFloat32(11, false) / 1000);
                     const batRaw = Math.min(100, Math.max(0, Math.round(view.getInt16(21, false) / 256)));
@@ -123,13 +143,11 @@
                     const calSG = parseFloat((gRaw + offset).toFixed(4));
                     const calPlato = parseFloat(((-1*616.868) + (1111.14*calSG) - (630.272*Math.pow(calSG,2)) + (135.997*Math.pow(calSG,3))).toFixed(1));
 
-                    // Update Real-time UI
                     document.getElementById('gVal').innerText = (unit === 'SG' ? calSG.toFixed(4) : calPlato);
                     document.getElementById('tVal').innerText = tRaw;
                     document.getElementById('bVal').innerText = batRaw;
                     document.getElementById('lastUpdate').innerText = new Date().toLocaleTimeString();
                     
-                    // Logger Logic
                     const now = Date.now();
                     if (now - lastLogTime > LOG_INTERVAL || lastLogTime === 0) {
                         logs.push({ t: now, g: calSG, p: calPlato, temp: parseFloat(tRaw) });
@@ -140,18 +158,18 @@
                 }
             });
         } catch (e) { 
-            alert("Bluetooth Error: " + e.message); 
+            alert("Bluetooth Error: " + e.message + "\n\nCheck 'Settings' for Chrome setup help."); 
         }
     };
 
-    // Chart Management
+    // --- CHARTING ---
     function initCharts() {
         const cfg = { 
             responsive: true, 
             maintainAspectRatio: false, 
             scales: { 
-                x: { type: 'time', time: { unit: 'hour' }, grid: { color: '#333' } }, 
-                y: { grid: { color: '#333' } } 
+                x: { type: 'time', time: { unit: 'hour' }, grid: { color: '#333' }, ticks: { color: '#888' } }, 
+                y: { grid: { color: '#333' }, ticks: { color: '#888' } } 
             }, 
             plugins: { legend: { display: false } } 
         };
@@ -175,8 +193,21 @@
         tempChart.update();
     }
 
-    // Modal & UI Helpers
-    function closeModals() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
+    // --- UI HELPERS ---
+    function closeModals() { 
+        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); 
+        document.getElementById('setupInstructions').style.display = 'none';
+    }
+
+    function toggleSetup() {
+        const el = document.getElementById('setupInstructions');
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function copyFlagLink() {
+        navigator.clipboard.writeText("chrome://flags/#enable-experimental-web-platform-features")
+            .then(() => alert("Link copied! Paste it in your address bar."));
+    }
     
     document.getElementById('openSettings').onclick = () => {
         document.getElementById('offsetInput').value = offset;
@@ -202,14 +233,12 @@
         localStorage.setItem('rapt_history', JSON.stringify(history));
         logs = []; 
         localStorage.setItem('rapt_current_logs', JSON.stringify(logs));
-        refreshCharts(); 
-        closeModals();
-        location.reload(); // Reset UI state
+        location.reload(); 
     }
 
     document.getElementById('openHistory').onclick = () => {
         const list = document.getElementById('historyList');
-        list.innerHTML = history.length ? '' : '<div style="padding:15px; color:#666;">No archives found.</div>';
+        list.innerHTML = history.length ? '' : '<div style="padding:15px; color:#666; font-size:12px;">No archives found.</div>';
         history.forEach((item, idx) => {
             const el = document.createElement('div'); el.className = 'history-item';
             el.innerHTML = `<span>${item.name}</span><small style="color:var(--kl-muted)">${new Date(item.date).toLocaleDateString()}</small>`;
@@ -226,7 +255,7 @@
 
     window.onclick = (e) => { if (e.target.className === 'modal') closeModals(); };
     
-    // Initial Setup
+    // Init
     document.getElementById('unitDisplay').innerText = "UNIT: " + unit;
     initCharts();
 </script>
