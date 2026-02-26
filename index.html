@@ -42,7 +42,7 @@
         input, select { width: 100%; padding: 10px; margin: 10px 0; background: #111; border: 1px solid #444; color: white; border-radius: 4px; box-sizing: border-box; }
         
         .setup-box { background: #111; padding: 12px; border-radius: 4px; margin: 10px 0; border-left: 3px solid #f39c12; font-size: 11px; line-height: 1.4; color: #ddd; }
-        .history-item { padding: 12px; border-bottom: 1px solid #333; cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; }
+        .history-item { padding: 12px; border-bottom: 1px solid #333; cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
         .history-item:hover { background: #222; color: var(--kl-red); }
     </style>
 </head>
@@ -77,8 +77,8 @@
         <div class="card"><div class="label" style="color:var(--kl-muted)">Battery</div><div class="value"><span id="bVal">--</span>%</div></div>
     </div>
 
-    <div class="chart-wrapper"><div class="chart-title">DENSITY TREND</div><div class="chart-container"><canvas id="gravChart"></canvas></div></div>
-    <div class="chart-wrapper"><div class="chart-title">THERMAL PROFILE</div><div class="chart-container"><canvas id="tempChart"></canvas></div></div>
+    <div class="chart-wrapper"><div class="chart-title" id="gravTitle">DENSITY TREND</div><div class="chart-container"><canvas id="gravChart"></canvas></div></div>
+    <div class="chart-wrapper"><div class="chart-title" id="tempTitle">THERMAL PROFILE</div><div class="chart-container"><canvas id="tempChart"></canvas></div></div>
 </div>
 
 <div id="settingsModal" class="modal">
@@ -119,6 +119,7 @@
     let offset = parseFloat(localStorage.getItem('rapt_offset')) || 0;
     let unit = localStorage.getItem('rapt_unit') || 'SG';
     let lastLogTime = 0;
+    let viewingHistory = false;
     const LOG_INTERVAL = 15 * 60 * 1000; 
 
     let gravChart, tempChart;
@@ -146,6 +147,7 @@
                     const calSG = parseFloat((gRaw + offset).toFixed(4));
                     const calPlato = parseFloat(((-1*616.868) + (1111.14*calSG) - (630.272*Math.pow(calSG,2)) + (135.997*Math.pow(calSG,3))).toFixed(1));
 
+                    // Live Dashboard always shows current sensor data
                     document.getElementById('gVal').innerText = (unit === 'SG' ? calSG.toFixed(4) : calPlato);
                     document.getElementById('tVal').innerText = tRaw;
                     document.getElementById('bVal').innerText = bat;
@@ -156,7 +158,9 @@
                         logs.push({ t: now, g: calSG, p: calPlato, temp: parseFloat(tRaw) });
                         localStorage.setItem('rapt_current_logs', JSON.stringify(logs));
                         lastLogTime = now;
-                        refreshCharts();
+                        
+                        // Only update chart if we aren't currently inspecting an old brew
+                        if (!viewingHistory) refreshCharts();
                     }
                 }
             });
@@ -181,10 +185,16 @@
         refreshCharts();
     }
 
-    function refreshCharts() {
-        gravChart.data.datasets[0].data = logs.map(l => ({ x: l.t, y: unit === 'SG' ? l.g : l.p }));
-        tempChart.data.datasets[0].data = logs.map(l => ({ x: l.t, y: l.temp }));
-        gravChart.update(); tempChart.update();
+    // Refactored to accept external data sets (History)
+    function refreshCharts(displayData = logs, displayUnit = unit, label = "STATION READY") {
+        gravChart.data.datasets[0].data = displayData.map(l => ({ x: l.t, y: displayUnit === 'SG' ? l.g : l.p }));
+        tempChart.data.datasets[0].data = displayData.map(l => ({ x: l.t, y: l.temp }));
+        
+        document.getElementById('brewNameDisplay').innerText = label;
+        document.getElementById('brewNameDisplay').style.color = viewingHistory ? 'var(--kl-blue)' : 'var(--kl-muted)';
+        
+        gravChart.update(); 
+        tempChart.update();
     }
 
     function closeModals() { 
@@ -213,7 +223,8 @@
         localStorage.setItem('rapt_offset', offset);
         localStorage.setItem('rapt_unit', unit);
         document.getElementById('unitDisplay').innerText = "UNIT: " + unit;
-        refreshCharts(); closeModals();
+        if (!viewingHistory) refreshCharts(); 
+        closeModals();
     };
 
     function archiveCurrentBrew() {
@@ -222,17 +233,41 @@
         if (!name) return;
         history.push({ name: name, date: new Date().toISOString(), data: [...logs], unit: unit });
         localStorage.setItem('rapt_history', JSON.stringify(history));
-        logs = []; localStorage.setItem('rapt_current_logs', JSON.stringify(logs));
+        logs = []; 
+        localStorage.setItem('rapt_current_logs', JSON.stringify(logs));
         location.reload(); 
     }
 
     document.getElementById('openHistory').onclick = () => {
         const list = document.getElementById('historyList');
-        list.innerHTML = history.length ? '' : '<div style="padding:15px; color:#666;">No archives.</div>';
+        list.innerHTML = '';
+        
+        // Always offer the way back to Live Session
+        const liveLink = document.createElement('div');
+        liveLink.className = 'history-item';
+        liveLink.innerHTML = `<span style="color:var(--kl-blue); font-weight:bold;">← BACK TO LIVE SESSION</span>`;
+        liveLink.onclick = () => {
+            viewingHistory = false;
+            refreshCharts(logs, unit, "STATION READY");
+            closeModals();
+        };
+        list.appendChild(liveLink);
+
+        if (history.length === 0) {
+            const empty = document.createElement('div');
+            empty.style.padding = '15px'; empty.style.color = '#666';
+            empty.innerText = 'No archives found.';
+            list.appendChild(empty);
+        }
+
         history.forEach((item, idx) => {
             const el = document.createElement('div'); el.className = 'history-item';
-            el.innerHTML = `<span>${item.name}</span> <small style="color:#888;">${new Date(item.date).toLocaleDateString()}</small>`;
-            el.onclick = () => { logs = item.data; unit = item.unit || 'SG'; refreshCharts(); closeModals(); };
+            el.innerHTML = `<div>${item.name}<br><small style="color:#888;">${new Date(item.date).toLocaleDateString()}</small></div> <span style="font-size:10px; opacity:0.6;">${item.unit || 'SG'}</span>`;
+            el.onclick = () => { 
+                viewingHistory = true;
+                refreshCharts(item.data, item.unit || 'SG', "ARCHIVE: " + item.name); 
+                closeModals(); 
+            };
             list.appendChild(el);
         });
         document.getElementById('historyModal').style.display = 'block';
