@@ -11,7 +11,7 @@
         :root { --kl-red: #e30613; --kl-blue: #3498db; --kl-dark: #1a1a1a; --kl-grey: #2d2d2d; --kl-text: #ffffff; --kl-muted: #a0a0a0; }
         body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: var(--kl-dark); margin: 0; padding: 15px; color: var(--kl-text); display: flex; flex-direction: column; align-items: center; }
         .container { width: 100%; max-width: 800px; }
-        
+
         header { border-left: 4px solid var(--kl-red); padding-left: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-start; }
         .doc-link { color: var(--kl-red); text-decoration: none; font-size: 10px; font-weight: bold; text-transform: uppercase; border: 1px solid var(--kl-red); padding: 4px 8px; border-radius: 4px; transition: 0.2s; }
         .doc-link:hover { background: var(--kl-red); color: white; }
@@ -20,18 +20,18 @@
         .status-bar { background: var(--kl-grey); padding: 8px 15px; border-radius: 4px; font-size: 11px; margin-bottom: 15px; display: flex; justify-content: space-between; border: 1px solid #333; }
         .dot { height: 8px; width: 8px; background-color: #444; border-radius: 50%; display: inline-block; margin-right: 5px; }
         .active .dot { background-color: #27ae60; box-shadow: 0 0 8px #27ae60; }
-        
+
         #dashboard { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
         .card { background: var(--kl-grey); padding: 15px; border-radius: 8px; border-bottom: 3px solid #333; text-align: center; }
         .card.grav { border-bottom: 3px solid var(--kl-red); }
         .card.temp { border-bottom: 3px solid var(--kl-blue); }
         .value { font-size: 24px; font-weight: 700; font-family: monospace; }
         .label { font-size: 10px; text-transform: uppercase; font-weight: bold; margin-bottom: 4px; }
-        
+
         .chart-wrapper { position: relative; background: var(--kl-grey); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #333; }
         .chart-container { height: 250px; }
         .chart-title { position: absolute; top: 10px; left: 15px; font-size: 9px; font-weight: bold; color: var(--kl-muted); letter-spacing: 1px; z-index: 5; }
-        
+
         button { flex: 1; padding: 12px 5px; font-size: 11px; cursor: pointer; border: none; border-radius: 4px; text-transform: uppercase; font-weight: bold; transition: 0.2s; }
         .btn-main { background: var(--kl-red); color: white; }
         .btn-sub { background: #444; color: white; }
@@ -40,7 +40,7 @@
         .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); backdrop-filter: blur(2px); }
         .modal-content { background: var(--kl-grey); margin: 5% auto; padding: 25px; border-radius: 8px; width: 350px; border: 1px solid var(--kl-red); overflow-y: auto; max-height: 85vh; }
         input, select { width: 100%; padding: 10px; margin: 10px 0; background: #111; border: 1px solid #444; color: white; border-radius: 4px; box-sizing: border-box; }
-        
+
         .setup-box { background: #111; padding: 12px; border-radius: 4px; margin: 10px 0; border-left: 3px solid #f39c12; font-size: 11px; line-height: 1.4; color: #ddd; }
         .history-item { padding: 12px; border-bottom: 1px solid #333; cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
         .history-item:hover { background: #222; }
@@ -124,9 +124,37 @@
     let unit = localStorage.getItem('rapt_unit') || 'SG';
     let lastLogTime = 0;
     let viewingHistory = false;
-    const LOG_INTERVAL = 15 * 60 * 1000; 
+    const LOG_INTERVAL = 15 * 60 * 1000;
 
     let gravChart, tempChart;
+
+    // --- RAPT Payload Parsing ---
+    // Manufacturer data for ID 16722 ("RA"), payload starts "PT". All big endian.
+    //   v1   (fw 1.x): "PT" 01 mac[6] temp:u16 (K*128) gravity:f32 (pts) x y z:i16 battery:u16 (%*256)
+    //   v2   (fw 1.x): "PT" 02 00 vel_valid:u8 vel:f32 temp:u16 (K*128) gravity:f32 (pts) x y z:i16 battery:u16 (%*256)
+    //   0xb7 (fw 2.0): "PT" b7 mac[6] 01 tilt:i16 gravity:i16 temp:i16 battery:u16 80 00 fw[3] 06
+    //                  All x100: tilt deg, gravity pts (SG = 1 + raw/100000), temp C, battery %.
+    //                  Reverse-engineered from captures; not officially documented.
+    // Returns { sg, temp, bat } or null for anything else (e.g. "PTd" device type packets).
+    function parseRapt(view) {
+        if (view.byteLength < 3 || view.getUint8(0) !== 0x50 || view.getUint8(1) !== 0x54) return null;
+        const version = view.getUint8(2);
+        if ((version === 0x01 || version === 0x02) && view.byteLength === 23) {
+            return {
+                temp: view.getUint16(9, false) / 128 - 273.15,
+                sg: view.getFloat32(11, false) / 1000,
+                bat: view.getUint16(21, false) / 256
+            };
+        }
+        if (version === 0xb7 && view.byteLength === 24) {
+            return {
+                sg: 1 + view.getInt16(12, false) / 100000,
+                temp: view.getInt16(14, false) / 100,
+                bat: view.getUint16(16, false) / 100
+            };
+        }
+        return null;
+    }
 
     // --- Bluetooth Scanning ---
     document.getElementById('startBtn').onclick = async () => {
@@ -142,14 +170,12 @@
 
             navigator.bluetooth.addEventListener('advertisementreceived', event => {
                 const mData = event.manufacturerData.get(16722);
-                if (mData && mData.byteLength === 23) {
-                    const view = new DataView(mData.buffer);
-                    const tRaw = (view.getUint16(9, false) / 128 - 273.15).toFixed(1);
-                    const gRaw = (view.getFloat32(11, false) / 1000);
-                    const rawBat = Math.round(view.getInt16(21, false) / 256);
-                    const bat = Math.max(0, Math.min(100, rawBat));
+                const reading = mData && parseRapt(mData);
+                if (reading) {
+                    const tRaw = reading.temp.toFixed(1);
+                    const bat = Math.max(0, Math.min(100, Math.round(reading.bat)));
 
-                    const calSG = parseFloat((gRaw + offset).toFixed(4));
+                    const calSG = parseFloat((reading.sg + offset).toFixed(4));
                     const calPlato = parseFloat(((-1*616.868) + (1111.14*calSG) - (630.272*Math.pow(calSG,2)) + (135.997*Math.pow(calSG,3))).toFixed(1));
 
                     // Update Dashboard (Live Values)
@@ -157,13 +183,13 @@
                     document.getElementById('tVal').innerText = tRaw;
                     document.getElementById('bVal').innerText = bat;
                     document.getElementById('lastUpdate').innerText = new Date().toLocaleTimeString();
-                    
+
                     const now = Date.now();
                     if (now - lastLogTime > LOG_INTERVAL || lastLogTime === 0) {
                         logs.push({ t: now, g: calSG, p: calPlato, temp: parseFloat(tRaw) });
                         localStorage.setItem('rapt_current_logs', JSON.stringify(logs));
                         lastLogTime = now;
-                        
+
                         // Only refresh graph if user isn't looking at an archive
                         if (!viewingHistory) refreshCharts();
                     }
@@ -174,11 +200,11 @@
 
     // --- Charting Logic ---
     function initCharts() {
-        const cfg = { 
+        const cfg = {
             responsive: true, maintainAspectRatio: false,
-            scales: { 
-                x: { 
-                    type: 'time', 
+            scales: {
+                x: {
+                    type: 'time',
                     time: { unit: 'hour', displayFormats: { hour: 'MMM d, HH:mm', day: 'MMM d' }, tooltipFormat: 'MMM d, HH:mm:ss' },
                     grid: { color: '#333' }, ticks: { color: '#888', maxRotation: 0, autoSkip: true }
                 },
@@ -194,20 +220,20 @@
     function refreshCharts(displayData = logs, displayUnit = unit, label = "STATION READY") {
         gravChart.data.datasets[0].data = displayData.map(l => ({ x: l.t, y: displayUnit === 'SG' ? l.g : l.p }));
         tempChart.data.datasets[0].data = displayData.map(l => ({ x: l.t, y: l.temp }));
-        
+
         document.getElementById('brewNameDisplay').innerText = label;
         document.getElementById('brewNameDisplay').style.color = viewingHistory ? 'var(--kl-blue)' : 'var(--kl-muted)';
-        
-        gravChart.update(); 
+
+        gravChart.update();
         tempChart.update();
     }
 
     // --- Utility Functions ---
-    function closeModals() { 
-        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); 
+    function closeModals() {
+        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
         document.getElementById('setupInstructions').style.display = 'none';
     }
-    
+
     function toggleSetup() {
         const el = document.getElementById('setupInstructions');
         el.style.display = el.style.display === 'none' ? 'block' : 'none';
@@ -230,7 +256,7 @@
         localStorage.setItem('rapt_offset', offset);
         localStorage.setItem('rapt_unit', unit);
         document.getElementById('unitDisplay').innerText = "UNIT: " + unit;
-        if (!viewingHistory) refreshCharts(); 
+        if (!viewingHistory) refreshCharts();
         closeModals();
     };
 
@@ -240,14 +266,14 @@
         if (!name) return;
         history.push({ name: name, date: new Date().toISOString(), data: [...logs], unit: unit });
         localStorage.setItem('rapt_history', JSON.stringify(history));
-        logs = []; 
+        logs = [];
         localStorage.setItem('rapt_current_logs', JSON.stringify(logs));
-        location.reload(); 
+        location.reload();
     }
 
     // --- History & Renaming Logic ---
     window.renameHistoryItem = function(idx, event) {
-        event.stopPropagation(); 
+        event.stopPropagation();
         const oldName = history[idx].name;
         const newName = prompt("Rename brew session:", oldName);
         if (newName && newName !== oldName) {
@@ -260,7 +286,7 @@
     document.getElementById('openHistory').onclick = () => {
         const list = document.getElementById('historyList');
         list.innerHTML = '';
-        
+
         // Return to Live Session option
         const liveLink = document.createElement('div');
         liveLink.className = 'history-item';
@@ -280,7 +306,7 @@
         }
 
         history.forEach((item, idx) => {
-            const el = document.createElement('div'); 
+            const el = document.createElement('div');
             el.className = 'history-item';
             el.innerHTML = `
                 <div class="item-text">
@@ -289,10 +315,10 @@
                 </div>
                 <button class="btn-rename" onclick="renameHistoryItem(${idx}, event)">RENAME</button>
             `;
-            el.onclick = () => { 
+            el.onclick = () => {
                 viewingHistory = true;
-                refreshCharts(item.data, item.unit || 'SG', "ARCHIVE: " + item.name); 
-                closeModals(); 
+                refreshCharts(item.data, item.unit || 'SG', "ARCHIVE: " + item.name);
+                closeModals();
             };
             list.appendChild(el);
         });
